@@ -21,6 +21,14 @@ const Dashboard = () => {
   const { user } = useAuth();
   const [isTaskFormOpen, setIsTaskFormOpen] = useState(false);
   
+  const handleTaskFormSubmit = () => {
+    setIsTaskFormOpen(false);
+  };
+  
+  const handleTaskFormCancel = () => {
+    setIsTaskFormOpen(false);
+  };
+  
   return (
     <TaskProvider>
       <div className="flex flex-col md:flex-row min-h-screen bg-background">
@@ -47,7 +55,10 @@ const Dashboard = () => {
                     <DialogHeader>
                       <DialogTitle>Create a new task</DialogTitle>
                     </DialogHeader>
-                    <TaskForm />
+                    <TaskForm 
+                      onSubmit={handleTaskFormSubmit}
+                      onCancel={handleTaskFormCancel}
+                    />
                   </DialogContent>
                 </Dialog>
               </div>
