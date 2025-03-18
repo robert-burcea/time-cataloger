@@ -9,10 +9,11 @@ import { Badge } from '@/components/ui/badge';
 import { CategoryBadge } from '@/components/CategoryBadge';
 import { CheckCircle, Clock } from 'lucide-react';
 import { formatTimeForDisplay } from '@/utils/timeUtils';
+import { DayContent } from 'react-day-picker';
 
 // Separate component for task list to use the task context
 const TaskCalendarView = () => {
-  const { tasks, categories, getTaskById, getCategoryById } = useTask();
+  const { tasks, categories, tags, getTaskById, getCategoryById } = useTask();
   const [selectedDate, setSelectedDate] = React.useState<Date | undefined>(new Date());
   
   // Find all days that have tasks scheduled
@@ -44,14 +45,22 @@ const TaskCalendarView = () => {
     });
   }, [selectedDate, tasks]);
   
+  // Helper function to get a tag by its ID
+  const getTagById = (id: string) => {
+    return tags.find(tag => tag.id === id);
+  };
+  
   // Custom day renderer to show indicators for days with tasks
-  const dayWithTasksRenderer = (day: Date, modifiers: any) => {
-    const dateStr = day.toISOString().split('T')[0];
+  const dayWithTasksRenderer = (props: { date: Date; displayMonth: Date; }) => {
+    const { date, displayMonth } = props;
+    
+    // Convert date to string format for comparison
+    const dateStr = new Date(date).toISOString().split('T')[0];
     const hasTask = daysWithTasks[dateStr];
     
     return (
       <div className="relative h-9 w-9 p-0">
-        <div className={modifiers.selected ? "text-white" : ""}>{day.getDate()}</div>
+        <div className={props.selected ? "text-white" : ""}>{date.getDate()}</div>
         {hasTask && (
           <div className="absolute bottom-1 left-1/2 transform -translate-x-1/2">
             <div className="flex gap-0.5">
@@ -74,7 +83,7 @@ const TaskCalendarView = () => {
               onSelect={setSelectedDate}
               className="mx-auto"
               components={{
-                Day: dayWithTasksRenderer,
+                DayContent: dayWithTasksRenderer as DayContent,
               }}
             />
           </CardContent>
@@ -131,8 +140,8 @@ const TaskCalendarView = () => {
                           <div className="flex flex-wrap gap-2 mt-2">
                             {category && (
                               <CategoryBadge 
-                                name={category.name} 
-                                color={category.color} 
+                                categoryId={category.id}
+                                className=""
                               />
                             )}
                             
