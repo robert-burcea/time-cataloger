@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { X, ListFilter, Search, PlusCircle, CheckSquare } from 'lucide-react';
+import { X, ListFilter, Search, PlusCircle, CheckSquare, Tag as TagIcon } from 'lucide-react';
 import { useTask, Task } from '@/context/TaskContext';
 import TaskItem from './TaskItem';
 import { Input } from '@/components/ui/input';
