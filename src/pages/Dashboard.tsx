@@ -47,7 +47,7 @@ const Dashboard = () => {
                     <DialogHeader>
                       <DialogTitle>Create a new task</DialogTitle>
                     </DialogHeader>
-                    <TaskForm onClose={() => setIsTaskFormOpen(false)} />
+                    <TaskForm />
                   </DialogContent>
                 </Dialog>
               </div>
