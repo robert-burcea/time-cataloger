@@ -44,7 +44,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Only try to connect to Supabase if properly configured
     if (!supabaseReady) {
       // For development, create a dummy user to bypass auth
-      if (process.env.NODE_ENV === 'development') {
+      if (import.meta.env.DEV) {
+        console.info("Development mode: Creating dummy user for testing");
         const dummyUser: User = {
           id: 'dev-user-id',
           name: 'Dev User',
@@ -52,6 +53,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           picture: 'https://ui-avatars.com/api/?name=Dev+User&background=0D8ABC&color=fff'
         };
         setUser(dummyUser);
+      } else {
+        // In production, notify user that Supabase is not configured
+        toast.error(
+          "Authentication system is not configured. Please contact the administrator.",
+          { duration: 8000, id: "auth-config-error" }
+        );
       }
       setIsLoading(false);
       return;
@@ -72,12 +79,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     // Check for existing session on load
     const checkSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session) {
-        const formattedUser = formatUser(session.user);
-        setUser(formattedUser);
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session) {
+          const formattedUser = formatUser(session.user);
+          setUser(formattedUser);
+        }
+      } catch (error) {
+        console.error("Error checking auth session:", error);
+        toast.error("Failed to verify authentication status");
+      } finally {
+        setIsLoading(false);
       }
-      setIsLoading(false);
     };
     
     checkSession();
@@ -95,7 +108,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const googleSignIn = async () => {
     if (!supabaseReady) {
-      toast.error('Supabase is not properly configured. Please set your environment variables.');
+      toast.error('Authentication system is not configured. Please contact the administrator.');
       console.error('Cannot sign in: Supabase is not configured with proper environment variables');
       return;
     }
@@ -113,7 +126,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     } catch (error) {
       console.error('Error signing in with Google:', error);
-      toast.error('Failed to sign in with Google');
+      toast.error('Failed to sign in with Google. Please try again later.');
       throw error;
     }
   };
@@ -131,7 +144,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       toast.info('You have been logged out');
     } catch (error) {
       console.error('Error signing out:', error);
-      toast.error('Failed to sign out');
+      toast.error('Failed to sign out. Please try again.');
     }
   };
 

@@ -1,12 +1,13 @@
 
 import React, { useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
-import { Clock, LogIn } from 'lucide-react';
+import { Clock, LogIn, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
 const LoginPage: React.FC = () => {
-  const { googleSignIn } = useAuth();
+  const { googleSignIn, supabaseReady } = useAuth();
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   
   const handleGoogleLogin = async () => {
@@ -36,11 +37,20 @@ const LoginPage: React.FC = () => {
             </p>
           </div>
           
+          {!supabaseReady && (
+            <Alert variant="destructive" className="mb-4">
+              <AlertCircle className="h-4 w-4 mr-2" />
+              <AlertDescription>
+                Authentication system is not configured. Contact the administrator to set up Supabase.
+              </AlertDescription>
+            </Alert>
+          )}
+          
           <div className="space-y-4">
             <Button
               className="w-full py-6 relative overflow-hidden group"
               onClick={handleGoogleLogin}
-              disabled={isLoggingIn}
+              disabled={isLoggingIn || !supabaseReady}
             >
               <div className="flex items-center justify-center gap-2">
                 <LogIn className="h-5 w-5" />
