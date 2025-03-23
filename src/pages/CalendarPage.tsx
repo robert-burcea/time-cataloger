@@ -1,200 +1,196 @@
 
 import React, { useState, useMemo } from 'react';
-import { useAuth } from '@/context/AuthContext';
-import { TaskProvider, useTask } from '@/context/TaskContext';
-import Navbar from '@/components/Navbar';
+import { useTask } from '@/context/TaskContext';
+import { DayContent, DayProps } from 'react-day-picker';
+import { format, isToday, isWithinInterval, startOfDay, endOfDay, parseISO } from 'date-fns';
 import { Calendar } from '@/components/ui/calendar';
-import { Card, CardContent } from '@/components/ui/card';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { CategoryBadge } from '@/components/CategoryBadge';
-import { CheckCircle, Clock } from 'lucide-react';
-import { formatTimeForDisplay } from '@/utils/timeUtils';
-import { DayContent } from 'react-day-picker';
+import Navbar from '@/components/Navbar';
+import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Clock } from 'lucide-react';
+import { formatDateForDisplay, formatTime } from '@/utils/timeUtils';
+import { TaskProvider } from '@/context/TaskContext';
 
-// Separate component for task list to use the task context
-const TaskCalendarView = () => {
-  const { tasks, categories, tags, getTaskById, getCategoryById } = useTask();
-  const [selectedDate, setSelectedDate] = React.useState<Date | undefined>(new Date());
+const CalendarPage = () => {
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
+  const [visibleMonth, setVisibleMonth] = useState<Date>(new Date());
   
-  // Find all days that have tasks scheduled
-  const daysWithTasks = useMemo(() => {
-    return tasks.reduce((days: Record<string, number>, task) => {
-      if (task.scheduledDate) {
-        const dateStr = new Date(task.scheduledDate).toISOString().split('T')[0];
-        days[dateStr] = (days[dateStr] || 0) + 1;
-      }
-      return days;
-    }, {});
-  }, [tasks]);
+  const { tasks, categories, tags, getTagById, getCategoryById } = useTask();
   
-  // Get tasks for the selected date
+  // Find tasks scheduled for the selected date
   const tasksForSelectedDate = useMemo(() => {
     if (!selectedDate) return [];
     
-    const dateStr = selectedDate.toISOString().split('T')[0];
+    const dayStart = startOfDay(selectedDate);
+    const dayEnd = endOfDay(selectedDate);
+    
     return tasks.filter(task => {
       if (!task.scheduledDate) return false;
-      const taskDateStr = new Date(task.scheduledDate).toISOString().split('T')[0];
-      return taskDateStr === dateStr;
-    }).sort((a, b) => {
-      // Sort by time if available, otherwise by creation date
-      if (a.scheduledStartTime && b.scheduledStartTime) {
-        return a.scheduledStartTime.localeCompare(b.scheduledStartTime);
-      }
-      return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+      
+      const taskDate = parseISO(task.scheduledDate);
+      return isWithinInterval(taskDate, { start: dayStart, end: dayEnd });
     });
   }, [selectedDate, tasks]);
   
-  // Helper function to get a tag by its ID
-  const getTagById = (id: string) => {
-    return tags.find(tag => tag.id === id);
-  };
-  
-  // Custom day renderer to show indicators for days with tasks
-  const dayWithTasksRenderer = (props: { date: Date; displayMonth: Date; }) => {
-    const { date, displayMonth } = props;
+  // For each day, check if there are tasks scheduled
+  const daysWithTasks = useMemo(() => {
+    const days = new Map<string, number>();
     
-    // Convert date to string format for comparison
-    const dateStr = new Date(date).toISOString().split('T')[0];
-    const hasTask = daysWithTasks[dateStr];
+    tasks.forEach(task => {
+      if (task.scheduledDate) {
+        const dateKey = task.scheduledDate.split('T')[0]; // YYYY-MM-DD
+        days.set(dateKey, (days.get(dateKey) || 0) + 1);
+      }
+    });
+    
+    return days;
+  }, [tasks]);
+  
+  // Custom day content renderer that shows a dot for days with tasks
+  const dayWithTasksRenderer = (props: DayProps) => {
+    const { date, displayMonth } = props;
+    const dateKey = format(date, 'yyyy-MM-dd');
+    const taskCount = daysWithTasks.get(dateKey) || 0;
+    const isSelected = selectedDate && format(selectedDate, 'yyyy-MM-dd') === dateKey;
     
     return (
-      <div className="relative h-9 w-9 p-0">
-        <div className={props.selected ? "text-white" : ""}>{date.getDate()}</div>
-        {hasTask && (
-          <div className="absolute bottom-1 left-1/2 transform -translate-x-1/2">
-            <div className="flex gap-0.5">
-              <div className="h-1 w-1 rounded-full bg-primary" />
-            </div>
+      <div className="relative flex items-center justify-center w-full h-full">
+        <span>{date.getDate()}</span>
+        {taskCount > 0 && (
+          <div className="absolute -bottom-1">
+            <div className={`h-1 w-1 rounded-full ${isSelected ? 'bg-white' : 'bg-primary'}`}></div>
           </div>
         )}
       </div>
     );
   };
   
-  return (
-    <div className="flex flex-col lg:flex-row gap-6">
-      <div className="w-full lg:w-1/3">
-        <Card>
-          <CardContent className="p-4">
-            <Calendar
-              mode="single"
-              selected={selectedDate}
-              onSelect={setSelectedDate}
-              className="mx-auto"
-              components={{
-                DayContent: dayWithTasksRenderer as DayContent,
-              }}
-            />
-          </CardContent>
-        </Card>
-      </div>
-      
-      <div className="w-full lg:w-2/3">
-        <Card>
-          <CardContent className="p-4">
-            <h2 className="text-xl font-semibold mb-4">
-              Tasks for {selectedDate?.toLocaleDateString(undefined, { 
-                weekday: 'long', 
-                year: 'numeric', 
-                month: 'long', 
-                day: 'numeric' 
-              })}
-            </h2>
-            
-            {tasksForSelectedDate.length === 0 ? (
-              <p className="text-muted-foreground py-6 text-center">
-                No tasks scheduled for this day
-              </p>
-            ) : (
-              <div className="space-y-3">
-                {tasksForSelectedDate.map(task => {
-                  const category = getCategoryById(task.categoryId);
-                  
-                  return (
-                    <div 
-                      key={task.id} 
-                      className={`p-3 rounded-lg border ${
-                        task.completed ? 'bg-muted/30' : 'bg-card'
-                      }`}
-                    >
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2">
-                            {task.completed && (
-                              <CheckCircle className="h-4 w-4 text-green-500" />
-                            )}
-                            <h3 className={`font-medium ${
-                              task.completed ? 'line-through text-muted-foreground' : ''
-                            }`}>
-                              {task.title}
-                            </h3>
-                          </div>
-                          
-                          {task.description && (
-                            <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
-                              {task.description}
-                            </p>
-                          )}
-                          
-                          <div className="flex flex-wrap gap-2 mt-2">
-                            {category && (
-                              <CategoryBadge 
-                                categoryId={category.id}
-                                className=""
-                              />
-                            )}
-                            
-                            {task.tags.length > 0 && task.tags.map(tagId => (
-                              <Badge key={tagId} variant="outline" className="text-xs">
-                                {getTagById(tagId)?.name || 'Unknown tag'}
-                              </Badge>
-                            ))}
-                          </div>
-                        </div>
-                        
-                        {task.scheduledStartTime && (
-                          <div className="flex items-center text-xs text-muted-foreground whitespace-nowrap">
-                            <Clock className="h-3 w-3 mr-1" />
-                            <span>
-                              {formatTimeForDisplay(new Date(`2000-01-01T${task.scheduledStartTime}`))}{" "}
-                              {task.scheduledEndTime && (
-                                <>
-                                  - {formatTimeForDisplay(new Date(`2000-01-01T${task.scheduledEndTime}`))}
-                                </>
-                              )}
-                            </span>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-    </div>
-  );
-};
-
-const CalendarPage = () => {
-  const { user } = useAuth();
+  const handlePrevMonth = () => {
+    setVisibleMonth(prev => {
+      const newDate = new Date(prev);
+      newDate.setMonth(newDate.getMonth() - 1);
+      return newDate;
+    });
+  };
+  
+  const handleNextMonth = () => {
+    setVisibleMonth(prev => {
+      const newDate = new Date(prev);
+      newDate.setMonth(newDate.getMonth() + 1);
+      return newDate;
+    });
+  };
   
   return (
     <TaskProvider>
       <div className="flex flex-col md:flex-row min-h-screen bg-background">
         <Navbar />
+        
         <main className="flex-1 p-4 md:p-6 pt-20 md:pt-6 overflow-auto">
           <div className="container mx-auto max-w-6xl">
-            <div className="mb-8">
-              <h1 className="text-3xl font-bold mb-4">Calendar</h1>
-              <p className="text-muted-foreground mb-6">
-                View and manage your scheduled tasks
-              </p>
+            <div className="flex flex-col gap-6">
+              <div className="flex justify-between items-center">
+                <h1 className="text-3xl font-bold">Calendar</h1>
+                <div className="flex gap-2">
+                  <Button variant="outline" size="icon" onClick={handlePrevMonth}>
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  <Button variant="outline" size="icon" onClick={handleNextMonth}>
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
               
-              <TaskCalendarView />
+              <div className="grid grid-cols-1 md:grid-cols-7 md:gap-6 gap-8">
+                <Card className="md:col-span-5">
+                  <CardContent className="p-4">
+                    <Calendar
+                      mode="single"
+                      selected={selectedDate}
+                      onSelect={setSelectedDate}
+                      month={visibleMonth}
+                      onMonthChange={setVisibleMonth}
+                      className="w-full"
+                      components={{
+                        DayContent: dayWithTasksRenderer as unknown as DayContent
+                      }}
+                    />
+                  </CardContent>
+                </Card>
+                
+                <Card className="md:col-span-2">
+                  <CardHeader>
+                    <CardTitle>
+                      <div className="flex items-center gap-2">
+                        <CalendarIcon className="h-5 w-5" />
+                        {selectedDate ? formatDateForDisplay(selectedDate) : 'No date selected'}
+                      </div>
+                    </CardTitle>
+                    <CardDescription>
+                      {tasksForSelectedDate.length === 0 
+                        ? 'No tasks scheduled' 
+                        : `${tasksForSelectedDate.length} task${tasksForSelectedDate.length === 1 ? '' : 's'} scheduled`}
+                    </CardDescription>
+                  </CardHeader>
+                  
+                  <CardContent>
+                    <div className="space-y-4">
+                      {tasksForSelectedDate.length === 0 ? (
+                        <div className="text-center py-8 text-muted-foreground">
+                          <CalendarIcon className="h-10 w-10 mx-auto mb-2 opacity-20" />
+                          <p>No tasks scheduled for this day</p>
+                          <p className="text-sm">Select a different date or add a new task</p>
+                        </div>
+                      ) : (
+                        tasksForSelectedDate.map(task => (
+                          <div key={task.id} className="border rounded-lg p-3 space-y-2">
+                            <div className="flex justify-between items-start">
+                              <h3 className="font-medium">{task.title}</h3>
+                              <CategoryBadge categoryId={task.categoryId} />
+                            </div>
+                            
+                            {task.description && (
+                              <p className="text-sm text-muted-foreground">{task.description}</p>
+                            )}
+                            
+                            {task.tags.length > 0 && (
+                              <div className="flex flex-wrap gap-1">
+                                {task.tags.map(tagId => {
+                                  const tag = getTagById(tagId);
+                                  return tag ? (
+                                    <Badge key={tagId} variant="outline" className="text-xs">
+                                      {tag.name}
+                                    </Badge>
+                                  ) : null;
+                                })}
+                              </div>
+                            )}
+                            
+                            {(task.scheduledStartTime || task.scheduledEndTime) && (
+                              <div className="flex items-center text-sm text-muted-foreground">
+                                <Clock className="h-3 w-3 mr-1" />
+                                <span>
+                                  {task.scheduledStartTime ? formatTime(task.scheduledStartTime) : '--:--'} 
+                                  {' to '} 
+                                  {task.scheduledEndTime ? formatTime(task.scheduledEndTime) : '--:--'}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
             </div>
           </div>
         </main>

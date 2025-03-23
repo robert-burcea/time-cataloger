@@ -1,294 +1,269 @@
 
 import React, { useMemo } from 'react';
-import { useAuth } from '@/context/AuthContext';
-import { TaskProvider, useTask } from '@/context/TaskContext';
+import { useTask } from '@/context/TaskContext';
+import { 
+  PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, 
+  Tooltip, Legend, ResponsiveContainer 
+} from 'recharts';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
 import Navbar from '@/components/Navbar';
 import { 
-  PieChart, 
-  Pie, 
-  Cell, 
-  ResponsiveContainer, 
-  Legend, 
-  Tooltip, 
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid
-} from 'recharts';
+  PieChart as PieChartIcon, 
+  BarChart as BarChartIcon,
+  Clock, 
+  CheckCircle2,
+  Calendar,
+  AlertCircle
+} from 'lucide-react';
+import { TaskProvider } from '@/context/TaskContext';
+import { addDays, format, startOfWeek, endOfWeek, isWithinInterval, parseISO } from 'date-fns';
 
-// Separate component to access the TaskContext
-const StatisticsContent = () => {
+const StatisticsPage = () => {
   const { tasks, categories, getCategoryById } = useTask();
-  
-  // Calculate category distribution
-  const categoryData = useMemo(() => {
-    const categoryDistribution = tasks.reduce((acc, task) => {
-      const categoryId = task.categoryId;
-      
-      // Skip tasks without a category
-      if (!categoryId) return acc;
-      
-      // Get the category
-      const category = getCategoryById(categoryId);
-      if (!category) return acc;
-      
-      // Initialize category count if not exists
-      if (!acc[categoryId]) {
-        acc[categoryId] = {
-          id: categoryId,
-          name: category.name,
-          color: category.color,
-          value: 0,
-          tasks: 0,
-          completedTasks: 0,
-          totalDuration: 0
-        };
-      }
-      
-      // Calculate total time spent on this task
-      const taskDuration = task.timeLogs.reduce((total, log) => total + log.duration, 0);
-      
-      // Update category stats
-      acc[categoryId].tasks += 1;
-      acc[categoryId].value += taskDuration; // For pie chart
-      acc[categoryId].totalDuration += taskDuration;
-      if (task.completed) {
-        acc[categoryId].completedTasks += 1;
-      }
-      
-      return acc;
-    }, {});
+
+  // Calculate time spent per category
+  const categoryTimeData = useMemo(() => {
+    const categoryTimes: Record<string, number> = {};
     
-    // Convert to array
-    return Object.values(categoryDistribution);
-  }, [tasks, getCategoryById]);
-  
-  // Weekly task completion data
-  const weeklyStats = useMemo(() => {
-    const now = new Date();
-    const currentDayOfWeek = now.getDay(); // 0 = Sunday, 6 = Saturday
-    const startOfWeek = new Date(now);
-    startOfWeek.setDate(now.getDate() - currentDayOfWeek);
-    startOfWeek.setHours(0, 0, 0, 0);
-    
-    // Total tasks created this week
-    const tasksThisWeek = tasks.filter(task => {
-      const taskCreatedAt = new Date(task.createdAt);
-      return taskCreatedAt >= startOfWeek;
+    // Initialize all categories with 0 time
+    categories.forEach(category => {
+      categoryTimes[category.id] = 0;
     });
     
-    // Completed tasks this week
-    const completedTasksThisWeek = tasksThisWeek.filter(task => task.completed);
+    // Sum up time logs for each task by category
+    tasks.forEach(task => {
+      if (task.timeLogs.length > 0) {
+        let totalSeconds = 0;
+        task.timeLogs.forEach(log => {
+          totalSeconds += log.duration;
+        });
+        
+        categoryTimes[task.categoryId] = (categoryTimes[task.categoryId] || 0) + totalSeconds;
+      }
+    });
     
-    // Total tracked time this week
-    const timeTrackedThisWeek = tasks.reduce((total, task) => {
-      const taskTimeLogs = task.timeLogs.filter(log => {
-        const logStartTime = new Date(log.startTime);
-        return logStartTime >= startOfWeek;
+    // Convert to array format for chart
+    return Object.keys(categoryTimes)
+      .filter(id => categoryTimes[id] > 0) // Only include categories with time spent
+      .map(id => {
+        const category = getCategoryById(id);
+        return {
+          name: category?.name || 'Unknown',
+          value: Math.round(categoryTimes[id] / 60), // Convert to minutes
+          color: category?.color || '#cccccc'
+        };
       });
-      
-      const taskDuration = taskTimeLogs.reduce((sum, log) => sum + log.duration, 0);
-      return total + taskDuration;
-    }, 0);
+  }, [tasks, categories, getCategoryById]);
+  
+  // Calculate tasks completed this week
+  const weeklyStats = useMemo(() => {
+    const today = new Date();
+    const weekStart = startOfWeek(today, { weekStartsOn: 1 }); // Monday
+    const weekEnd = endOfWeek(today, { weekStartsOn: 1 }); // Sunday
     
-    // Percent of completion
-    const completionPercent = tasksThisWeek.length > 0 
-      ? Math.round((completedTasksThisWeek.length / tasksThisWeek.length) * 100) 
-      : 0;
+    // Tasks completed this week
+    const completedThisWeek = tasks.filter(task => {
+      if (!task.completed) return false;
+      const completedDate = task.updatedAt ? parseISO(task.updatedAt) : null;
+      return completedDate && isWithinInterval(completedDate, { start: weekStart, end: weekEnd });
+    }).length;
+    
+    // Total tracked time this week (in hours)
+    let totalTimeTrackedThisWeek = 0;
+    
+    tasks.forEach(task => {
+      task.timeLogs.forEach(log => {
+        const logDate = parseISO(log.startTime);
+        if (isWithinInterval(logDate, { start: weekStart, end: weekEnd })) {
+          totalTimeTrackedThisWeek += log.duration;
+        }
+      });
+    });
+    
+    // Convert seconds to hours
+    const hoursTracked = Math.round(totalTimeTrackedThisWeek / 3600 * 10) / 10;
     
     return {
-      totalTasks: tasksThisWeek.length,
-      completedTasks: completedTasksThisWeek.length,
-      timeTracked: timeTrackedThisWeek, // in seconds
-      productivityScore: completionPercent
+      completedTasks: completedThisWeek,
+      hoursTracked
     };
   }, [tasks]);
   
-  // Format seconds into hours and minutes
-  const formatTime = (seconds) => {
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    
-    if (hours > 0) {
-      return `${hours} hr${hours !== 1 ? 's' : ''} ${minutes} min${minutes !== 1 ? 's' : ''}`;
-    }
-    return `${minutes} min${minutes !== 1 ? 's' : ''}`;
-  };
-  
-  // Daily activity data (tasks completed per day this week)
+  // Daily activity data
   const dailyActivityData = useMemo(() => {
-    const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-    const now = new Date();
-    const currentDayOfWeek = now.getDay();
+    const today = new Date();
+    const weekStart = startOfWeek(today, { weekStartsOn: 1 }); // Monday
     
-    // Create array of last 7 days
-    const result = [];
-    for (let i = 6; i >= 0; i--) {
-      const date = new Date(now);
-      date.setDate(now.getDate() - i);
-      date.setHours(0, 0, 0, 0);
-      
-      const nextDate = new Date(date);
-      nextDate.setDate(date.getDate() + 1);
-      
-      const dayTasks = tasks.filter(task => {
-        const taskCompletedAt = task.updatedAt;
-        if (!task.completed || !taskCompletedAt) return false;
-        
-        const completedDate = new Date(taskCompletedAt);
-        return completedDate >= date && completedDate < nextDate;
-      });
-      
-      result.push({
-        name: days[date.getDay()].substring(0, 3),
-        tasks: dayTasks.length
-      });
+    // Create an array of the days of the week
+    const days = [];
+    for (let i = 0; i < 7; i++) {
+      days.push(addDays(weekStart, i));
     }
     
-    return result;
+    // Count tasks and time for each day
+    return days.map(day => {
+      const dayStart = startOfDay(day);
+      const dayEnd = endOfDay(day);
+      
+      const tasksForDay = tasks.filter(task => {
+        if (!task.scheduledDate) return false;
+        const taskDate = parseISO(task.scheduledDate);
+        return isWithinInterval(taskDate, { start: dayStart, end: dayEnd });
+      });
+      
+      let timeTrackedForDay = 0;
+      tasks.forEach(task => {
+        task.timeLogs.forEach(log => {
+          const logDate = parseISO(log.startTime);
+          if (isWithinInterval(logDate, { start: dayStart, end: dayEnd })) {
+            timeTrackedForDay += log.duration;
+          }
+        });
+      });
+      
+      return {
+        name: format(day, 'EEE'),
+        tasks: tasksForDay.length,
+        timeHours: Math.round(timeTrackedForDay / 3600 * 10) / 10
+      };
+    });
   }, [tasks]);
   
-  return (
-    <>
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold mb-4">Statistics</h1>
-        <p className="text-muted-foreground mb-6">
-          Analyze your time usage and productivity
-        </p>
-        
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="bg-card rounded-lg shadow p-6">
-            <h2 className="text-xl font-semibold mb-4">Time Distribution by Category</h2>
-            {categoryData.length > 0 ? (
-              <div className="h-80">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={categoryData}
-                      cx="50%"
-                      cy="50%"
-                      labelLine={false}
-                      outerRadius={80}
-                      fill="#8884d8"
-                      dataKey="value"
-                      label={({ name, percent }) => 
-                        `${name} ${(percent * 100).toFixed(0)}%`
-                      }
-                    >
-                      {categoryData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.color} />
-                      ))}
-                    </Pie>
-                    <Tooltip 
-                      formatter={(value, name, props) => {
-                        return [formatTime(value), 'Time Spent'];
-                      }} 
-                    />
-                    <Legend />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-            ) : (
-              <div className="h-80 flex items-center justify-center">
-                <p className="text-muted-foreground">
-                  Start tracking time to see your category distribution
-                </p>
-              </div>
-            )}
-          </div>
-          
-          <div className="bg-card rounded-lg shadow p-6">
-            <h2 className="text-xl font-semibold mb-4">Weekly Overview</h2>
-            <div className="space-y-4">
-              <div>
-                <div className="flex justify-between mb-1">
-                  <span className="text-sm font-medium">Tasks Completed</span>
-                  <span className="text-sm font-medium">
-                    {weeklyStats.completedTasks}/{weeklyStats.totalTasks}
-                  </span>
-                </div>
-                <div className="w-full bg-gray-200 rounded-full h-2.5">
-                  <div 
-                    className="bg-primary h-2.5 rounded-full" 
-                    style={{ 
-                      width: `${weeklyStats.totalTasks > 0 
-                        ? (weeklyStats.completedTasks / weeklyStats.totalTasks) * 100 
-                        : 0}%` 
-                    }}
-                  ></div>
-                </div>
-              </div>
-              
-              <div>
-                <div className="flex justify-between mb-1">
-                  <span className="text-sm font-medium">Time Tracked</span>
-                  <span className="text-sm font-medium">
-                    {formatTime(weeklyStats.timeTracked)}
-                  </span>
-                </div>
-                <div className="w-full bg-gray-200 rounded-full h-2.5">
-                  <div 
-                    className="bg-primary h-2.5 rounded-full" 
-                    style={{ 
-                      width: `${Math.min(
-                        weeklyStats.timeTracked > 0 
-                          ? (weeklyStats.timeTracked / (40 * 3600)) * 100 // 40 hours as max
-                          : 0, 
-                        100
-                      )}%` 
-                    }}
-                  ></div>
-                </div>
-              </div>
-              
-              <div>
-                <div className="flex justify-between mb-1">
-                  <span className="text-sm font-medium">Productivity Score</span>
-                  <span className="text-sm font-medium">
-                    {weeklyStats.productivityScore}%
-                  </span>
-                </div>
-                <div className="w-full bg-gray-200 rounded-full h-2.5">
-                  <div 
-                    className="bg-primary h-2.5 rounded-full" 
-                    style={{ width: `${weeklyStats.productivityScore}%` }}
-                  ></div>
-                </div>
-              </div>
-            </div>
-          </div>
-          
-          <div className="bg-card rounded-lg shadow p-6 md:col-span-2">
-            <h2 className="text-xl font-semibold mb-4">Daily Activity</h2>
-            <div className="h-80">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={dailyActivityData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="name" />
-                  <YAxis allowDecimals={false} />
-                  <Tooltip />
-                  <Bar dataKey="tasks" name="Tasks Completed" fill="#4f46e5" radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-        </div>
-      </div>
-    </>
-  );
-};
-
-const StatisticsPage = () => {
-  const { user } = useAuth();
+  // Helper function for start of day
+  function startOfDay(date: Date): Date {
+    const newDate = new Date(date);
+    newDate.setHours(0, 0, 0, 0);
+    return newDate;
+  }
+  
+  // Helper function for end of day
+  function endOfDay(date: Date): Date {
+    const newDate = new Date(date);
+    newDate.setHours(23, 59, 59, 999);
+    return newDate;
+  }
   
   return (
     <TaskProvider>
       <div className="flex flex-col md:flex-row min-h-screen bg-background">
         <Navbar />
+        
         <main className="flex-1 p-4 md:p-6 pt-20 md:pt-6 overflow-auto">
           <div className="container mx-auto max-w-6xl">
-            <StatisticsContent />
+            <div className="flex flex-col gap-6">
+              <div>
+                <h1 className="text-3xl font-bold">Statistics</h1>
+                <p className="text-muted-foreground">Track your productivity and task completion</p>
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <PieChartIcon className="h-5 w-5" />
+                      Time by Category
+                    </CardTitle>
+                    <CardDescription>
+                      Distribution of time spent across different categories
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    {categoryTimeData.length > 0 ? (
+                      <div className="h-[300px]">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <PieChart>
+                            <Pie
+                              data={categoryTimeData}
+                              cx="50%"
+                              cy="50%"
+                              labelLine={false}
+                              label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                              outerRadius={80}
+                              fill="#8884d8"
+                              dataKey="value"
+                            >
+                              {categoryTimeData.map((entry, index) => (
+                                <Cell key={`cell-${index}`} fill={entry.color} />
+                              ))}
+                            </Pie>
+                            <Tooltip 
+                              formatter={(value: number) => [`${value} minutes`, 'Time Spent']} 
+                            />
+                            <Legend />
+                          </PieChart>
+                        </ResponsiveContainer>
+                      </div>
+                    ) : (
+                      <div className="h-[300px] flex items-center justify-center flex-col text-muted-foreground">
+                        <Clock className="h-12 w-12 mb-2 opacity-20" />
+                        <p>No time tracking data available</p>
+                        <p className="text-sm">Start tracking time on your tasks to see statistics</p>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+                
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Calendar className="h-5 w-5" />
+                      Weekly Overview
+                    </CardTitle>
+                    <CardDescription>
+                      Your productivity this week
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-2 gap-4">
+                      <Card className="border-2">
+                        <CardContent className="p-6 flex flex-col items-center justify-center">
+                          <CheckCircle2 className="h-10 w-10 text-primary mb-2" />
+                          <span className="text-3xl font-bold">{weeklyStats.completedTasks}</span>
+                          <span className="text-muted-foreground text-sm">Tasks Completed</span>
+                        </CardContent>
+                      </Card>
+                      
+                      <Card className="border-2">
+                        <CardContent className="p-6 flex flex-col items-center justify-center">
+                          <Clock className="h-10 w-10 text-primary mb-2" />
+                          <span className="text-3xl font-bold">{weeklyStats.hoursTracked}</span>
+                          <span className="text-muted-foreground text-sm">Hours Tracked</span>
+                        </CardContent>
+                      </Card>
+                    </div>
+                    
+                    <div className="mt-6 h-[200px]">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={dailyActivityData}>
+                          <CartesianGrid strokeDasharray="3 3" />
+                          <XAxis dataKey="name" />
+                          <YAxis />
+                          <Tooltip />
+                          <Legend />
+                          <Bar dataKey="tasks" name="Tasks" fill="#8884d8" />
+                          <Bar dataKey="timeHours" name="Hours" fill="#82ca9d" />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+              
+              {tasks.length === 0 && (
+                <Card className="bg-muted/40">
+                  <CardContent className="p-6 flex items-center">
+                    <AlertCircle className="h-5 w-5 text-muted-foreground mr-2" />
+                    <p>Add tasks and track your time to see meaningful statistics here.</p>
+                  </CardContent>
+                </Card>
+              )}
+            </div>
           </div>
         </main>
       </div>

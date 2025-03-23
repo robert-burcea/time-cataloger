@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
-import { Calendar as CalendarIcon, Clock as ClockIcon, Tag as TagIcon, X, Plus } from 'lucide-react';
-import { useTask, Category, Tag, Task } from '@/context/TaskContext';
+import { Calendar as CalendarIcon, Clock as ClockIcon, Tag as TagIcon, X, Plus, RepeatIcon } from 'lucide-react';
+import { useTask, Category, Tag, Task, RecurrenceInterval } from '@/context/TaskContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -48,6 +48,15 @@ const TaskForm: React.FC<TaskFormProps> = ({ taskId, onSubmit, onCancel }) => {
   const [isRecurring, setIsRecurring] = useState(existingTask?.isRecurring || false);
   const [startTime, setStartTime] = useState(existingTask?.scheduledStartTime || '');
   const [endTime, setEndTime] = useState(existingTask?.scheduledEndTime || '');
+  const [recurrenceInterval, setRecurrenceInterval] = useState<RecurrenceInterval>(
+    existingTask?.recurrenceInterval || 'daily'
+  );
+  const [recurrenceFrequency, setRecurrenceFrequency] = useState<number>(
+    existingTask?.recurrenceFrequency || 1
+  );
+  const [recurrenceEndDate, setRecurrenceEndDate] = useState<Date | undefined>(
+    existingTask?.recurrenceEndDate ? new Date(existingTask.recurrenceEndDate) : undefined
+  );
   
   useEffect(() => {
     // If we're editing and the start/end times aren't set but there's a date,
@@ -75,7 +84,10 @@ const TaskForm: React.FC<TaskFormProps> = ({ taskId, onSubmit, onCancel }) => {
       scheduledEndTime: endTime || null,
       tags: selectedTags,
       isRecurring,
-      recurrencePattern: isRecurring ? 'daily' : undefined, // Default pattern, can be expanded
+      recurrencePattern: isRecurring ? `${recurrenceFrequency} ${recurrenceInterval}` : undefined,
+      recurrenceFrequency: isRecurring ? recurrenceFrequency : undefined,
+      recurrenceInterval: isRecurring ? recurrenceInterval : undefined,
+      recurrenceEndDate: isRecurring && recurrenceEndDate ? recurrenceEndDate.toISOString() : null,
     };
     
     if (existingTask) {
@@ -234,8 +246,94 @@ const TaskForm: React.FC<TaskFormProps> = ({ taskId, onSubmit, onCancel }) => {
                     checked={isRecurring}
                     onCheckedChange={setIsRecurring}
                   />
-                  <Label htmlFor="recurring" className="text-sm cursor-pointer">Recurring task</Label>
+                  <Label htmlFor="recurring" className="text-sm cursor-pointer flex items-center">
+                    <RepeatIcon className="h-4 w-4 mr-1" />
+                    Recurring task
+                  </Label>
                 </div>
+                
+                {isRecurring && (
+                  <div className="mt-3 space-y-3 bg-secondary/30 p-3 rounded-md">
+                    <div className="flex gap-2 items-end">
+                      <div className="w-1/3">
+                        <Label htmlFor="recurrenceFrequency" className="text-xs">Repeat every</Label>
+                        <Input
+                          id="recurrenceFrequency"
+                          type="number"
+                          min="1"
+                          max="100"
+                          value={recurrenceFrequency}
+                          onChange={(e) => setRecurrenceFrequency(parseInt(e.target.value, 10) || 1)}
+                          className="mt-1"
+                        />
+                      </div>
+                      <div className="w-2/3">
+                        <Select
+                          value={recurrenceInterval}
+                          onValueChange={(value) => setRecurrenceInterval(value as RecurrenceInterval)}
+                        >
+                          <SelectTrigger id="recurrenceInterval" className="mt-1">
+                            <SelectValue placeholder="Select interval" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="daily">Day(s)</SelectItem>
+                            <SelectItem value="weekly">Week(s)</SelectItem>
+                            <SelectItem value="monthly">Month(s)</SelectItem>
+                            <SelectItem value="yearly">Year(s)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                    
+                    <div>
+                      <Label className="text-xs">Ends</Label>
+                      <div className="mt-1">
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <Button
+                              variant="outline"
+                              className={cn(
+                                "justify-start text-left w-full font-normal",
+                                !recurrenceEndDate && "text-muted-foreground"
+                              )}
+                              type="button"
+                            >
+                              <CalendarIcon className="mr-2 h-4 w-4" />
+                              {recurrenceEndDate ? formatDateForDisplay(recurrenceEndDate) : "Never"}
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-auto p-0" align="start">
+                            <div className="p-2 flex justify-between border-b">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setRecurrenceEndDate(undefined)}
+                                type="button"
+                              >
+                                Never
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setRecurrenceEndDate(new Date())}
+                                type="button"
+                              >
+                                Set Date
+                              </Button>
+                            </div>
+                            <Calendar
+                              mode="single"
+                              selected={recurrenceEndDate}
+                              onSelect={setRecurrenceEndDate}
+                              className="p-3 pointer-events-auto"
+                              disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
+                            />
+                          </PopoverContent>
+                        </Popover>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </>
             )}
           </div>

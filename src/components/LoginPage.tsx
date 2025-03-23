@@ -5,55 +5,19 @@ import { Clock, LogIn } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 
-interface MockGoogleUser {
-  id: string;
-  name: string;
-  email: string;
-  picture: string;
-}
-
-// This is a mock database of users for demo purposes
-const MOCK_USERS: MockGoogleUser[] = [
-  {
-    id: '1',
-    name: 'John Doe',
-    email: 'john.doe@example.com',
-    picture: 'https://randomuser.me/api/portraits/men/32.jpg',
-  },
-  {
-    id: '2',
-    name: 'Jane Smith',
-    email: 'jane.smith@example.com',
-    picture: 'https://randomuser.me/api/portraits/women/44.jpg',
-  },
-  {
-    id: '3',
-    name: 'Alex Johnson',
-    email: 'alex.johnson@example.com',
-    picture: 'https://randomuser.me/api/portraits/men/22.jpg',
-  },
-];
-
 const LoginPage: React.FC = () => {
-  const { login } = useAuth();
+  const { googleSignIn } = useAuth();
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   
   const handleGoogleLogin = async () => {
     setIsLoggingIn(true);
     
     try {
-      // In a real app, this would be an actual Google OAuth flow
-      // For demo purposes, we'll use a random mock user
-      const randomUser = MOCK_USERS[Math.floor(Math.random() * MOCK_USERS.length)];
-      
-      // Simulate network delay
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      login(randomUser);
+      await googleSignIn();
+      // The page will be redirected by Supabase OAuth flow
     } catch (error) {
       console.error('Login failed:', error);
       toast.error('Login failed. Please try again.');
-    } finally {
       setIsLoggingIn(false);
     }
   };
@@ -93,9 +57,7 @@ const LoginPage: React.FC = () => {
           <div className="mt-8 pt-6 border-t border-border">
             <div className="text-center">
               <p className="text-sm text-muted-foreground">
-                This is a demo app using local storage.
-                <br />
-                No actual authentication is performed.
+                Sign in with your Google account to start tracking your time.
               </p>
             </div>
           </div>

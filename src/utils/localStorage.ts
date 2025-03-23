@@ -1,4 +1,6 @@
 
+import { toast } from 'sonner';
+
 export const getStorageItem = <T>(key: string, defaultValue: T): T => {
   try {
     const item = localStorage.getItem(key);
@@ -14,6 +16,7 @@ export const setStorageItem = <T>(key: string, value: T): void => {
     localStorage.setItem(key, JSON.stringify(value));
   } catch (error) {
     console.error(`Error setting item ${key} in localStorage:`, error);
+    toast.error('Failed to save data locally');
   }
 };
 
@@ -24,3 +27,6 @@ export const removeStorageItem = (key: string): void => {
     console.error(`Error removing item ${key} from localStorage:`, error);
   }
 };
+
+// These functions are kept for backward compatibility,
+// but the app now primarily uses Supabase for data storage
