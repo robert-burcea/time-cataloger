@@ -1,7 +1,7 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
 import { toast } from 'sonner';
 import { useAuth } from './AuthContext';
-import { supabase } from '@/utils/supabase';
+import { supabase, safeSupabaseOperation, isSupabaseConfigured } from '@/utils/supabase';
 
 export type Category = {
   id: string;
@@ -85,7 +85,6 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [currentlyTrackedTaskId, setCurrentlyTrackedTaskId] = useState<string | null>(null);
   const [timeLogs, setTimeLogs] = useState<Record<string, TaskTimeLog[]>>({});
 
-  // Load data when user logs in
   useEffect(() => {
     const fetchData = async () => {
       if (!user) {
@@ -98,9 +97,8 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       setIsLoading(true);
       try {
-        // For development without Supabase connection
-        if (!supabaseReady) {
-          // Create default categories for development
+        const supabaseUnavailable = !isSupabaseConfigured() || !supabaseReady;
+        if (supabaseUnavailable) {
           const defaultCategories: Category[] = [
             { id: 'cat-1', name: 'Work', color: '#4f46e5' },
             { id: 'cat-2', name: 'Personal', color: '#10b981' },
@@ -108,14 +106,12 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
             { id: 'cat-4', name: 'Learning', color: '#f59e0b' },
           ];
           
-          // Create default tags for development
           const defaultTags: Tag[] = [
             { id: 'tag-1', name: 'Urgent' },
             { id: 'tag-2', name: 'Important' },
             { id: 'tag-3', name: 'Low Priority' },
           ];
           
-          // Create demo tasks for development
           const defaultTasks: Task[] = [
             {
               id: 'task-1',
@@ -160,7 +156,6 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
           return;
         }
 
-        // Original Supabase data fetching logic
         const { data: categoriesData, error: categoriesError } = await supabase
           .from('categories')
           .select('*')
@@ -175,7 +170,6 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
             color: cat.color
           })));
         } else {
-          // Create default categories if none exist
           const defaultCategories: Omit<Category, 'id'>[] = [
             { name: 'Work', color: '#4f46e5' },
             { name: 'Personal', color: '#10b981' },
@@ -188,7 +182,6 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
           }
         }
 
-        // Fetch tags
         const { data: tagsData, error: tagsError } = await supabase
           .from('tags')
           .select('*')
@@ -202,7 +195,6 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
             name: tag.name
           })));
         } else {
-          // Create default tags if none exist
           const defaultTags: Omit<Tag, 'id'>[] = [
             { name: 'Urgent' },
             { name: 'Important' },
@@ -214,7 +206,6 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
           }
         }
 
-        // Fetch tasks
         const { data: tasksData, error: tasksError } = await supabase
           .from('tasks')
           .select('*')
@@ -222,14 +213,12 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         if (tasksError) throw tasksError;
 
-        // Fetch task tags relationships
         const { data: taskTagsData, error: taskTagsError } = await supabase
           .from('task_tags')
           .select('*');
 
         if (taskTagsError) throw taskTagsError;
 
-        // Create a map of task id to tags
         const taskTagsMap: Record<string, string[]> = {};
         taskTagsData?.forEach(tt => {
           if (!taskTagsMap[tt.task_id]) {
@@ -238,7 +227,6 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
           taskTagsMap[tt.task_id].push(tt.tag_id);
         });
 
-        // Fetch time logs
         const { data: timeLogsData, error: timeLogsError } = await supabase
           .from('time_logs')
           .select('*')
@@ -246,7 +234,6 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         if (timeLogsError) throw timeLogsError;
 
-        // Create a map of task id to time logs
         const timeLogsMap: Record<string, TaskTimeLog[]> = {};
         timeLogsData?.forEach(tl => {
           if (!timeLogsMap[tl.task_id]) {
@@ -263,7 +250,6 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         setTimeLogs(timeLogsMap);
 
-        // Set tasks with their tags and time logs
         if (tasksData) {
           setTasks(tasksData.map(task => ({
             id: task.id,
@@ -287,7 +273,6 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
           })));
         }
 
-        // Check for active time tracking
         const activeLog = timeLogsData?.find(log => log.end_time === null);
         if (activeLog) {
           setCurrentlyTrackedTaskId(activeLog.task_id);
@@ -303,7 +288,6 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
     fetchData();
   }, [user, supabaseReady]);
 
-  // Check for active time tracking and update durations every second
   useEffect(() => {
     if (!currentlyTrackedTaskId) return;
     
@@ -315,12 +299,10 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
           const activeTimeLog = task.timeLogs.find(log => log.startTime && !log.endTime);
           if (!activeTimeLog) return task;
           
-          // Calculate current duration
           const startTime = new Date(activeTimeLog.startTime).getTime();
           const currentTime = new Date().getTime();
           const durationInSeconds = Math.floor((currentTime - startTime) / 1000);
           
-          // Update the time log
           return {
             ...task,
             timeLogs: task.timeLogs.map(log => 
@@ -343,7 +325,35 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const now = new Date().toISOString();
       
-      // Insert task
+      const localTaskId = `task-${Date.now()}`;
+      
+      const newTaskWithRelations: Task = {
+        id: localTaskId,
+        title: taskData.title,
+        description: taskData.description,
+        categoryId: taskData.categoryId,
+        completed: taskData.completed || false,
+        createdAt: now,
+        updatedAt: now,
+        deadline: taskData.deadline || null,
+        scheduledDate: taskData.scheduledDate || null,
+        scheduledStartTime: taskData.scheduledStartTime || null,
+        scheduledEndTime: taskData.scheduledEndTime || null,
+        tags: taskData.tags || [],
+        isRecurring: taskData.isRecurring || false,
+        recurrencePattern: taskData.recurrencePattern || undefined,
+        recurrenceFrequency: taskData.recurrenceFrequency || undefined,
+        recurrenceInterval: taskData.recurrenceInterval || undefined,
+        recurrenceEndDate: taskData.recurrenceEndDate || null,
+        timeLogs: []
+      };
+      
+      if (!isSupabaseConfigured() || !supabaseReady) {
+        setTasks(prev => [...prev, newTaskWithRelations]);
+        toast.success('Task added successfully');
+        return;
+      }
+      
       const { data: newTask, error: taskError } = await supabase
         .from('tasks')
         .insert({
@@ -369,7 +379,6 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       if (taskError) throw taskError;
       
-      // Insert task tags
       if (taskData.tags && taskData.tags.length > 0) {
         const taskTagsToInsert = taskData.tags.map(tagId => ({
           task_id: newTask.id,
@@ -383,33 +392,43 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (tagsError) throw tagsError;
       }
       
-      // Add task to local state
-      const newTaskWithRelations: Task = {
-        id: newTask.id,
-        title: newTask.title,
-        description: newTask.description,
-        categoryId: newTask.category_id,
-        completed: newTask.completed,
-        createdAt: newTask.created_at,
-        updatedAt: newTask.updated_at,
-        deadline: newTask.deadline,
-        scheduledDate: newTask.scheduled_date,
-        scheduledStartTime: newTask.scheduled_start_time,
-        scheduledEndTime: newTask.scheduled_end_time,
-        tags: taskData.tags || [],
-        isRecurring: newTask.is_recurring,
-        recurrencePattern: newTask.recurrence_pattern || undefined,
-        recurrenceFrequency: newTask.recurrence_frequency || undefined,
-        recurrenceInterval: newTask.recurrence_interval as RecurrenceInterval || undefined,
-        recurrenceEndDate: newTask.recurrence_end_date,
-        timeLogs: []
-      };
+      newTaskWithRelations.id = newTask.id;
       
       setTasks(prev => [...prev, newTaskWithRelations]);
       toast.success('Task added successfully');
     } catch (error) {
       console.error('Error adding task:', error);
-      toast.error('Failed to add task');
+      
+      if (import.meta.env.DEV) {
+        const now = new Date().toISOString();
+        const localTaskId = `task-${Date.now()}`;
+        
+        const newTaskWithRelations: Task = {
+          id: localTaskId,
+          title: taskData.title,
+          description: taskData.description,
+          categoryId: taskData.categoryId,
+          completed: taskData.completed || false,
+          createdAt: now,
+          updatedAt: now,
+          deadline: taskData.deadline || null,
+          scheduledDate: taskData.scheduledDate || null,
+          scheduledStartTime: taskData.scheduledStartTime || null,
+          scheduledEndTime: taskData.scheduledEndTime || null,
+          tags: taskData.tags || [],
+          isRecurring: taskData.isRecurring || false,
+          recurrencePattern: taskData.recurrencePattern || undefined,
+          recurrenceFrequency: taskData.recurrenceFrequency || undefined,
+          recurrenceInterval: taskData.recurrenceInterval || undefined,
+          recurrenceEndDate: taskData.recurrenceEndDate || null,
+          timeLogs: []
+        };
+        
+        setTasks(prev => [...prev, newTaskWithRelations]);
+        toast.success('Task added locally (Supabase connection failed)');
+      } else {
+        toast.error('Failed to add task');
+      }
     }
   };
 
@@ -420,7 +439,6 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const taskToUpdate = tasks.find(t => t.id === id);
       if (!taskToUpdate) return;
       
-      // Prepare data for update
       const updateData = {
         title: taskData.title,
         description: taskData.description,
@@ -438,14 +456,12 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
         updated_at: new Date().toISOString()
       };
       
-      // Remove undefined values
       Object.keys(updateData).forEach(key => {
         if (updateData[key as keyof typeof updateData] === undefined) {
           delete updateData[key as keyof typeof updateData];
         }
       });
       
-      // Update task
       const { error: taskError } = await supabase
         .from('tasks')
         .update(updateData)
@@ -453,9 +469,7 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       if (taskError) throw taskError;
       
-      // Update tags if they changed
       if (taskData.tags !== undefined) {
-        // Delete existing tag relationships
         const { error: deleteError } = await supabase
           .from('task_tags')
           .delete()
@@ -463,7 +477,6 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
         
         if (deleteError) throw deleteError;
         
-        // Insert new tag relationships
         if (taskData.tags.length > 0) {
           const taskTagsToInsert = taskData.tags.map(tagId => ({
             task_id: id,
@@ -478,7 +491,6 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       }
       
-      // Update local state
       setTasks(prevTasks => 
         prevTasks.map(task => 
           task.id === id
@@ -502,7 +514,6 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!user) return;
     
     try {
-      // Delete task tags first (foreign key constraint)
       const { error: tagsError } = await supabase
         .from('task_tags')
         .delete()
@@ -510,7 +521,6 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       if (tagsError) throw tagsError;
       
-      // Delete time logs
       const { error: logsError } = await supabase
         .from('time_logs')
         .delete()
@@ -518,7 +528,6 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       if (logsError) throw logsError;
       
-      // Delete the task
       const { error: taskError } = await supabase
         .from('tasks')
         .delete()
@@ -526,7 +535,6 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       if (taskError) throw taskError;
       
-      // Update local state
       setTasks(prevTasks => prevTasks.filter(task => task.id !== id));
       toast.success('Task deleted');
     } catch (error) {
@@ -544,7 +552,6 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       const newCompletedState = !taskToToggle.completed;
       
-      // Update task in database
       const { error } = await supabase
         .from('tasks')
         .update({ 
@@ -555,7 +562,6 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       if (error) throw error;
       
-      // Update local state
       setTasks(prevTasks => 
         prevTasks.map(task => 
           task.id === id
@@ -579,7 +585,6 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!user) return;
     
     try {
-      // Insert category into database
       const { data: newCategory, error } = await supabase
         .from('categories')
         .insert({
@@ -593,7 +598,6 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       if (error) throw error;
       
-      // Update local state
       setCategories(prev => [
         ...prev, 
         { 
@@ -614,7 +618,6 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!user) return;
     
     try {
-      // Update category in database
       const { error } = await supabase
         .from('categories')
         .update({
@@ -625,7 +628,6 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       if (error) throw error;
       
-      // Update local state
       setCategories(prevCategories => 
         prevCategories.map(category => 
           category.id === id
@@ -644,7 +646,6 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const deleteCategory = async (id: string) => {
     if (!user) return;
     
-    // Check if any tasks use this category
     const tasksWithCategory = tasks.filter(task => task.categoryId === id);
     
     if (tasksWithCategory.length > 0) {
@@ -653,7 +654,6 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
     
     try {
-      // Delete category from database
       const { error } = await supabase
         .from('categories')
         .delete()
@@ -661,7 +661,6 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       if (error) throw error;
       
-      // Update local state
       setCategories(prevCategories => prevCategories.filter(category => category.id !== id));
       toast.success('Category deleted');
     } catch (error) {
@@ -674,7 +673,6 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!user) return;
     
     try {
-      // Insert tag into database
       const { data: newTag, error } = await supabase
         .from('tags')
         .insert({
@@ -687,7 +685,6 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       if (error) throw error;
       
-      // Update local state
       setTags(prev => [
         ...prev, 
         { 
@@ -707,7 +704,6 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!user) return;
     
     try {
-      // Delete tag relationships first
       const { error: relError } = await supabase
         .from('task_tags')
         .delete()
@@ -715,7 +711,6 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       if (relError) throw relError;
       
-      // Delete tag from database
       const { error } = await supabase
         .from('tags')
         .delete()
@@ -723,7 +718,6 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       if (error) throw error;
       
-      // Remove this tag from all tasks that have it
       setTasks(prevTasks => 
         prevTasks.map(task => ({
           ...task,
@@ -731,7 +725,6 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }))
       );
       
-      // Update local state
       setTags(prevTags => prevTags.filter(tag => tag.id !== id));
       toast.success('Tag removed');
     } catch (error) {
@@ -744,14 +737,40 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!user) return;
     
     try {
-      // If another task is currently being tracked, stop it first
       if (currentlyTrackedTaskId && currentlyTrackedTaskId !== taskId) {
         await stopTimeTracking(currentlyTrackedTaskId);
       }
       
       const startTime = new Date().toISOString();
+      const newLogId = `log-${Date.now()}`;
       
-      // Insert new time log into database
+      if (!isSupabaseConfigured() || !supabaseReady) {
+        setCurrentlyTrackedTaskId(taskId);
+        
+        setTasks(prevTasks => 
+          prevTasks.map(task => {
+            if (task.id !== taskId) return task;
+            
+            const newLog: TaskTimeLog = {
+              id: newLogId,
+              taskId,
+              startTime: startTime,
+              endTime: null,
+              duration: 0,
+            };
+            
+            return {
+              ...task,
+              timeLogs: [...task.timeLogs, newLog],
+            };
+          })
+        );
+        
+        const taskName = tasks.find(t => t.id === taskId)?.title;
+        toast.success(`Started tracking time for "${taskName}"`);
+        return;
+      }
+      
       const { data: newTimeLog, error } = await supabase
         .from('time_logs')
         .insert({
@@ -769,12 +788,10 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       setCurrentlyTrackedTaskId(taskId);
       
-      // Update local state
       setTasks(prevTasks => 
         prevTasks.map(task => {
           if (task.id !== taskId) return task;
           
-          // Create a new time log entry
           const newLog: TaskTimeLog = {
             id: newTimeLog.id,
             taskId,
@@ -794,7 +811,37 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
       toast.success(`Started tracking time for "${taskName}"`);
     } catch (error) {
       console.error('Error starting time tracking:', error);
-      toast.error('Failed to start time tracking');
+      
+      if (import.meta.env.DEV) {
+        const startTime = new Date().toISOString();
+        const newLogId = `log-${Date.now()}`;
+        
+        setCurrentlyTrackedTaskId(taskId);
+        
+        setTasks(prevTasks => 
+          prevTasks.map(task => {
+            if (task.id !== taskId) return task;
+            
+            const newLog: TaskTimeLog = {
+              id: newLogId,
+              taskId,
+              startTime: startTime,
+              endTime: null,
+              duration: 0,
+            };
+            
+            return {
+              ...task,
+              timeLogs: [...task.timeLogs, newLog],
+            };
+          })
+        );
+        
+        const taskName = tasks.find(t => t.id === taskId)?.title;
+        toast.success(`Started tracking time locally for "${taskName}" (Supabase connection failed)`);
+      } else {
+        toast.error('Failed to start time tracking');
+      }
     }
   };
 
@@ -810,12 +857,10 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       const endTime = new Date().toISOString();
       
-      // Calculate final duration
       const startTimeMs = new Date(activeLog.startTime).getTime();
       const endTimeMs = new Date(endTime).getTime();
       const durationInSeconds = Math.floor((endTimeMs - startTimeMs) / 1000);
       
-      // Update time log in database
       const { error } = await supabase
         .from('time_logs')
         .update({
@@ -828,7 +873,6 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       setCurrentlyTrackedTaskId(null);
       
-      // Update local state
       setTasks(prevTasks => 
         prevTasks.map(task => {
           if (task.id !== taskId) return task;
@@ -889,28 +933,24 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
     scheduled?: boolean;
   }): Task[] => {
     return tasks.filter(task => {
-      // Filter by category
       if (filters.categoryIds && filters.categoryIds.length > 0) {
         if (!filters.categoryIds.includes(task.categoryId)) {
           return false;
         }
       }
       
-      // Filter by tags
       if (filters.tagIds && filters.tagIds.length > 0) {
         if (!filters.tagIds.some(tagId => task.tags.includes(tagId))) {
           return false;
         }
       }
       
-      // Filter by completion status
       if (filters.completed !== undefined) {
         if (task.completed !== filters.completed) {
           return false;
         }
       }
       
-      // Filter by scheduled status
       if (filters.scheduled !== undefined) {
         const isScheduled = task.scheduledDate !== null;
         if (isScheduled !== filters.scheduled) {
