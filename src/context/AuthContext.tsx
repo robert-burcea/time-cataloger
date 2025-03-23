@@ -1,7 +1,7 @@
 
 import React, { createContext, useState, useContext, useEffect } from 'react';
 import { toast } from 'sonner';
-import { supabase } from '@/utils/supabase';
+import { supabase, isSupabaseConfigured } from '@/utils/supabase';
 import { User as SupabaseUser } from '@supabase/supabase-js';
 
 type User = {
@@ -18,6 +18,7 @@ type AuthContextType = {
   login: (userData: User) => void;
   logout: () => void;
   googleSignIn: () => Promise<void>;
+  supabaseReady: boolean;
 };
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -25,6 +26,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [supabaseReady] = useState<boolean>(isSupabaseConfigured());
 
   // Transform Supabase user to our app's user format
   const formatUser = (supabaseUser: SupabaseUser | null): User | null => {
@@ -39,6 +41,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   useEffect(() => {
+    // Only try to connect to Supabase if properly configured
+    if (!supabaseReady) {
+      // For development, create a dummy user to bypass auth
+      if (process.env.NODE_ENV === 'development') {
+        const dummyUser: User = {
+          id: 'dev-user-id',
+          name: 'Dev User',
+          email: 'dev@example.com',
+          picture: 'https://ui-avatars.com/api/?name=Dev+User&background=0D8ABC&color=fff'
+        };
+        setUser(dummyUser);
+      }
+      setIsLoading(false);
+      return;
+    }
+
     // Set up auth state listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
@@ -68,7 +86,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => {
       subscription.unsubscribe();
     };
-  }, []);
+  }, [supabaseReady]);
 
   const login = (userData: User) => {
     setUser(userData);
@@ -76,6 +94,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const googleSignIn = async () => {
+    if (!supabaseReady) {
+      toast.error('Supabase is not properly configured. Please set your environment variables.');
+      console.error('Cannot sign in: Supabase is not configured with proper environment variables');
+      return;
+    }
+
     try {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
@@ -95,6 +119,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const logout = async () => {
+    if (!supabaseReady) {
+      setUser(null);
+      toast.info('You have been logged out');
+      return;
+    }
+
     try {
       await supabase.auth.signOut();
       setUser(null);
@@ -114,6 +144,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         login,
         logout,
         googleSignIn,
+        supabaseReady,
       }}
     >
       {children}

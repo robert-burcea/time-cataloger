@@ -1,4 +1,3 @@
-
 import React, { createContext, useState, useContext, useEffect } from 'react';
 import { toast } from 'sonner';
 import { useAuth } from './AuthContext';
@@ -78,7 +77,7 @@ type TaskContextType = {
 const TaskContext = createContext<TaskContextType | undefined>(undefined);
 
 export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { user } = useAuth();
+  const { user, supabaseReady } = useAuth();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [tags, setTags] = useState<Tag[]>([]);
@@ -86,7 +85,7 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [currentlyTrackedTaskId, setCurrentlyTrackedTaskId] = useState<string | null>(null);
   const [timeLogs, setTimeLogs] = useState<Record<string, TaskTimeLog[]>>({});
 
-  // Load data from Supabase when user logs in
+  // Load data when user logs in
   useEffect(() => {
     const fetchData = async () => {
       if (!user) {
@@ -99,7 +98,69 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       setIsLoading(true);
       try {
-        // Fetch categories
+        // For development without Supabase connection
+        if (!supabaseReady) {
+          // Create default categories for development
+          const defaultCategories: Category[] = [
+            { id: 'cat-1', name: 'Work', color: '#4f46e5' },
+            { id: 'cat-2', name: 'Personal', color: '#10b981' },
+            { id: 'cat-3', name: 'Health', color: '#ef4444' },
+            { id: 'cat-4', name: 'Learning', color: '#f59e0b' },
+          ];
+          
+          // Create default tags for development
+          const defaultTags: Tag[] = [
+            { id: 'tag-1', name: 'Urgent' },
+            { id: 'tag-2', name: 'Important' },
+            { id: 'tag-3', name: 'Low Priority' },
+          ];
+          
+          // Create demo tasks for development
+          const defaultTasks: Task[] = [
+            {
+              id: 'task-1',
+              title: 'Complete project proposal',
+              description: 'Finish the draft and send for review',
+              categoryId: 'cat-1',
+              completed: false,
+              createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+              updatedAt: new Date().toISOString(),
+              deadline: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(),
+              scheduledDate: new Date().toISOString().split('T')[0],
+              scheduledStartTime: '09:00:00',
+              scheduledEndTime: '11:00:00',
+              tags: ['tag-1', 'tag-2'],
+              isRecurring: false,
+              timeLogs: []
+            },
+            {
+              id: 'task-2',
+              title: 'Workout session',
+              description: 'Cardio and strength training',
+              categoryId: 'cat-3',
+              completed: true,
+              createdAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
+              updatedAt: new Date().toISOString(),
+              deadline: null,
+              scheduledDate: new Date().toISOString().split('T')[0],
+              scheduledStartTime: '17:00:00',
+              scheduledEndTime: '18:00:00',
+              tags: ['tag-3'],
+              isRecurring: true,
+              recurrenceInterval: 'daily',
+              recurrenceFrequency: 1,
+              timeLogs: []
+            },
+          ];
+          
+          setCategories(defaultCategories);
+          setTags(defaultTags);
+          setTasks(defaultTasks);
+          setIsLoading(false);
+          return;
+        }
+
+        // Original Supabase data fetching logic
         const { data: categoriesData, error: categoriesError } = await supabase
           .from('categories')
           .select('*')
@@ -231,7 +292,6 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (activeLog) {
           setCurrentlyTrackedTaskId(activeLog.task_id);
         }
-
       } catch (error) {
         console.error('Error fetching data:', error);
         toast.error('Failed to load your tasks and categories');
@@ -241,7 +301,7 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
 
     fetchData();
-  }, [user]);
+  }, [user, supabaseReady]);
 
   // Check for active time tracking and update durations every second
   useEffect(() => {
