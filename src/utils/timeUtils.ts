@@ -67,3 +67,18 @@ export const getRelativeDateLabel = (dateString: string | null): string => {
   
   return formatDateForDisplay(date);
 };
+
+// Add the missing formatTime function
+export const formatTime = (time: string): string => {
+  // Assuming time is in HH:MM:SS or HH:MM format
+  // Return in HH:MM format
+  if (!time) return '';
+  
+  const parts = time.split(':');
+  if (parts.length >= 2) {
+    // Take just hours and minutes
+    return `${parts[0]}:${parts[1]}`;
+  }
+  
+  return time;
+};

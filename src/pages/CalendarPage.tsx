@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo } from 'react';
 import { useTask } from '@/context/TaskContext';
 import { DayContent, DayProps } from 'react-day-picker';
@@ -25,7 +24,6 @@ const CalendarPage = () => {
   
   const { tasks, categories, tags, getTagById, getCategoryById } = useTask();
   
-  // Find tasks scheduled for the selected date
   const tasksForSelectedDate = useMemo(() => {
     if (!selectedDate) return [];
     
@@ -40,7 +38,6 @@ const CalendarPage = () => {
     });
   }, [selectedDate, tasks]);
   
-  // For each day, check if there are tasks scheduled
   const daysWithTasks = useMemo(() => {
     const days = new Map<string, number>();
     
@@ -54,7 +51,6 @@ const CalendarPage = () => {
     return days;
   }, [tasks]);
   
-  // Custom day content renderer that shows a dot for days with tasks
   const dayWithTasksRenderer = (props: DayProps) => {
     const { date, displayMonth } = props;
     const dateKey = format(date, 'yyyy-MM-dd');
@@ -120,7 +116,7 @@ const CalendarPage = () => {
                       onMonthChange={setVisibleMonth}
                       className="w-full"
                       components={{
-                        DayContent: dayWithTasksRenderer as unknown as DayContent
+                        DayContent: dayWithTasksRenderer as DayContent
                       }}
                     />
                   </CardContent>
