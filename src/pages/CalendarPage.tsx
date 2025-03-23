@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { useTask } from '@/context/TaskContext';
-import { DayContent, DayProps } from 'react-day-picker';
+import { DayContent, DayContentProps, DayProps } from 'react-day-picker';
 import { format } from 'date-fns';
 import { Card, CardContent } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -9,7 +9,7 @@ import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import { Calendar } from '@/components/ui/calendar';
 import { formatTime } from '@/utils/timeUtils';
-import CategoryBadge from '@/components/CategoryBadge';
+import { CategoryBadge } from '@/components/CategoryBadge';
 import { Check } from 'lucide-react';
 
 const CalendarPage = () => {
@@ -46,7 +46,8 @@ const CalendarPage = () => {
     return days;
   }, [tasks]);
   
-  const dayWithTasksRenderer = (props: DayProps) => {
+  // Define the day renderer that's compatible with DayContentProps
+  const dayWithTasksRenderer = (props: DayContentProps) => {
     const { date, displayMonth } = props;
     const dateKey = format(date, 'yyyy-MM-dd');
     const taskCount = daysWithTasks.get(dateKey) || 0;
@@ -93,7 +94,7 @@ const CalendarPage = () => {
                 onMonthChange={setVisibleMonth}
                 className="w-full"
                 components={{
-                  DayContent: dayWithTasksRenderer as React.ComponentType<DayProps>
+                  DayContent: dayWithTasksRenderer
                 }}
               />
             </CardContent>
@@ -132,7 +133,7 @@ const CalendarPage = () => {
                               </h3>
                             </div>
                             {category && (
-                              <CategoryBadge category={category} />
+                              <CategoryBadge categoryId={category.id} />
                             )}
                           </div>
                           
