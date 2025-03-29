@@ -1,26 +1,20 @@
 
-import React, { useState } from 'react';
+import React from 'react';
 import { useAuth } from '@/context/AuthContext';
-import { Clock, LogIn, AlertCircle } from 'lucide-react';
+import { Clock, LogIn } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { toast } from 'sonner';
-import { Alert, AlertDescription } from '@/components/ui/alert';
 
 const LoginPage: React.FC = () => {
-  const { googleSignIn, supabaseReady } = useAuth();
-  const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const { login } = useAuth();
   
-  const handleGoogleLogin = async () => {
-    setIsLoggingIn(true);
-    
-    try {
-      await googleSignIn();
-      // The page will be redirected by Supabase OAuth flow
-    } catch (error) {
-      console.error('Login failed:', error);
-      toast.error('Login failed. Please try again.');
-      setIsLoggingIn(false);
-    }
+  const handleLogin = () => {
+    // Create a mock user for demonstration
+    login({
+      id: 'local-user-id',
+      name: 'Demo User',
+      email: 'demo@example.com',
+      picture: 'https://ui-avatars.com/api/?name=Demo+User&background=0D8ABC&color=fff'
+    });
   };
 
   return (
@@ -37,37 +31,27 @@ const LoginPage: React.FC = () => {
             </p>
           </div>
           
-          {!supabaseReady && (
-            <Alert variant="destructive" className="mb-4">
-              <AlertCircle className="h-4 w-4 mr-2" />
-              <AlertDescription>
-                Authentication system is not configured. Contact the administrator to set up Supabase.
-              </AlertDescription>
-            </Alert>
-          )}
-          
           <div className="space-y-4">
             <Button
               className="w-full py-6 relative overflow-hidden group"
-              onClick={handleGoogleLogin}
-              disabled={isLoggingIn || !supabaseReady}
+              onClick={handleLogin}
             >
               <div className="flex items-center justify-center gap-2">
                 <LogIn className="h-5 w-5" />
-                <span>Continue with Google</span>
+                <span>Login as Demo User</span>
               </div>
               <div className="absolute bottom-0 left-0 h-0.5 w-full bg-primary-foreground/20 transform scale-x-0 group-hover:scale-x-100 transition-transform duration-300 origin-left"></div>
             </Button>
             
             <p className="text-xs text-center text-muted-foreground">
-              By continuing, you agree to our Terms of Service and Privacy Policy.
+              This is a demo application using local storage.
             </p>
           </div>
           
           <div className="mt-8 pt-6 border-t border-border">
             <div className="text-center">
               <p className="text-sm text-muted-foreground">
-                Sign in with your Google account to start tracking your time.
+                Click the button above to sign in as a demo user.
               </p>
             </div>
           </div>
