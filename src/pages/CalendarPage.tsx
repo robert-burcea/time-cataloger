@@ -1,6 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { useTask } from '@/context/TaskContext';
+import { TaskProvider } from '@/context/TaskContext';
 import { DayContent, DayContentProps, DayProps } from 'react-day-picker';
 import { format } from 'date-fns';
 import { Card, CardContent } from '@/components/ui/card';
@@ -11,8 +12,10 @@ import { Calendar } from '@/components/ui/calendar';
 import { formatTime } from '@/utils/timeUtils';
 import { CategoryBadge } from '@/components/CategoryBadge';
 import { Check } from 'lucide-react';
+import Navbar from '@/components/Navbar';
 
-const CalendarPage = () => {
+// Create a wrapper component that includes TaskProvider
+const CalendarPageContent = () => {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [visibleMonth, setVisibleMonth] = useState<Date>(new Date());
   
@@ -182,6 +185,20 @@ const CalendarPage = () => {
         </div>
       </div>
     </div>
+  );
+};
+
+// Main component with TaskProvider and layout
+const CalendarPage = () => {
+  return (
+    <TaskProvider>
+      <div className="flex flex-col md:flex-row min-h-screen bg-background">
+        <Navbar />
+        <main className="flex-1 p-4 md:p-6 pt-20 md:pt-6 overflow-auto">
+          <CalendarPageContent />
+        </main>
+      </div>
+    </TaskProvider>
   );
 };
 
