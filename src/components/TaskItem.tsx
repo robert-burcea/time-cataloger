@@ -70,18 +70,17 @@ const TaskItem: React.FC<TaskItemProps> = ({
   return (
     <div 
       className={cn(
-        "group relative p-4 rounded-lg border border-border/50 transition-all hover-scale",
-        task.completed ? "bg-secondary/50" : "bg-background/80 hover:shadow-soft",
-        compact ? "p-3" : "p-4",
+        "group relative py-2 transition-all hover:bg-secondary/40 rounded-md",
+        task.completed ? "opacity-70" : "",
         onClick && "cursor-pointer"
       )}
       onClick={onClick}
     >
-      <div className="flex items-start gap-3">
+      <div className="flex items-start gap-3 px-2">
         <button
           className={cn(
-            "flex-shrink-0 h-5 w-5 rounded-full border border-primary/20 flex items-center justify-center transition-colors",
-            task.completed ? "bg-primary text-primary-foreground" : "bg-background hover:bg-primary/10"
+            "flex-shrink-0 h-5 w-5 rounded-full border border-primary/30 flex items-center justify-center transition-colors mt-0.5",
+            task.completed ? "bg-primary/20 text-primary" : "bg-background hover:bg-primary/10"
           )}
           onClick={handleToggleCompletion}
           aria-label={task.completed ? "Mark as incomplete" : "Mark as complete"}
@@ -126,7 +125,7 @@ const TaskItem: React.FC<TaskItemProps> = ({
                       <TooltipTrigger asChild>
                         <button
                           onClick={handleStartTracking}
-                          className="p-1 rounded-full text-primary hover:bg-primary/10 transition-colors"
+                          className="p-1 rounded-full text-primary hover:bg-primary/10 transition-colors opacity-0 group-hover:opacity-100"
                           aria-label="Start tracking"
                         >
                           <PlayCircle className="h-4 w-4" />
@@ -143,7 +142,7 @@ const TaskItem: React.FC<TaskItemProps> = ({
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <button
-                    className="p-1 rounded-full hover:bg-secondary transition-colors"
+                    className="p-1 rounded-full hover:bg-secondary transition-colors opacity-0 group-hover:opacity-100"
                     aria-label="More options"
                   >
                     <MoreVertical className="h-4 w-4" />
@@ -180,15 +179,18 @@ const TaskItem: React.FC<TaskItemProps> = ({
             </p>
           )}
           
-          <div className="flex flex-wrap items-center gap-2 mt-2">
+          <div className="flex flex-wrap items-center gap-2 mt-1">
             {showCategory && (
               <CategoryBadge categoryId={task.categoryId} />
             )}
             
-            {task.scheduledDate && (
-              <div className="inline-flex items-center gap-1 text-xs text-muted-foreground">
-                <Calendar className="h-3 w-3" />
-                <span>{getRelativeDateLabel(task.scheduledDate)}</span>
+            {totalTrackedSeconds > 0 && (
+              <div className={cn(
+                "inline-flex items-center gap-1 text-xs",
+                isTracking ? "text-primary animate-pulse-soft" : "text-muted-foreground"
+              )}>
+                <Clock className="h-3 w-3" />
+                <span>{formatDuration(totalTrackedSeconds)}</span>
               </div>
             )}
             
@@ -199,13 +201,15 @@ const TaskItem: React.FC<TaskItemProps> = ({
               </div>
             )}
             
-            {totalTrackedSeconds > 0 && (
-              <div className={cn(
-                "inline-flex items-center gap-1 text-xs",
-                isTracking ? "text-primary animate-pulse-soft" : "text-muted-foreground"
-              )}>
-                <Clock className="h-3 w-3" />
-                <span>{formatDuration(totalTrackedSeconds)}</span>
+            {task.scheduledDate && (
+              <div className="inline-flex items-center gap-1 text-xs text-muted-foreground ml-auto">
+                <span>{getRelativeDateLabel(task.scheduledDate)}</span>
+              </div>
+            )}
+            
+            {task.scheduledStartTime && (
+              <div className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                <span>{task.scheduledStartTime.substring(0, 5)}</span>
               </div>
             )}
           </div>

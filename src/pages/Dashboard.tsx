@@ -6,7 +6,7 @@ import Navbar from '@/components/Navbar';
 import TaskList from '@/components/TaskList';
 import TimeTracker from '@/components/TimeTracker';
 import { Button } from '@/components/ui/button';
-import { PlusCircle, List, Columns, Calendar as CalendarIcon } from 'lucide-react';
+import { PlusCircle, List, Columns, Calendar as CalendarIcon, Search } from 'lucide-react';
 
 import {
   Dialog,
@@ -65,15 +65,16 @@ const Dashboard = () => {
         <Navbar />
         <main className="flex-1 p-4 md:p-6 pt-20 md:pt-6 overflow-auto">
           <div className="container mx-auto max-w-6xl">
-            <div className="mb-8">
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
-                <div className="flex items-center gap-2">
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center gap-3">
+                <h1 className="text-2xl font-semibold">My Tasks</h1>
+                <div className="flex items-center gap-1.5">
                   <DropdownMenu>
                     <TooltipProvider>
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <DropdownMenuTrigger asChild>
-                            <Button variant="outline" size="sm" className="gap-1">
+                            <Button variant="outline" size="sm" className="h-8 gap-1">
                               {renderViewIcon()}
                               <span className="hidden sm:inline">View</span>
                             </Button>
@@ -100,20 +101,19 @@ const Dashboard = () => {
                       </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
-                  
-                  <div>
-                    <h1 className="text-3xl font-bold">Welcome, {user?.name?.split(' ')[0]}</h1>
-                    <p className="text-muted-foreground mt-1">
-                      Here's your task overview and time tracking
-                    </p>
-                  </div>
                 </div>
+              </div>
+              
+              <div className="flex items-center gap-2">
+                <Button variant="outline" size="sm" className="h-8">
+                  <Search className="h-4 w-4" />
+                </Button>
                 
                 <Dialog open={isTaskFormOpen} onOpenChange={setIsTaskFormOpen}>
                   <DialogTrigger asChild>
-                    <Button className="w-full md:w-auto">
-                      <PlusCircle className="mr-2 h-4 w-4" />
-                      New Task
+                    <Button size="sm" className="h-8 gap-1">
+                      <PlusCircle className="h-4 w-4" />
+                      <span>Add task</span>
                     </Button>
                   </DialogTrigger>
                   <DialogContent className="sm:max-w-[550px]">
@@ -127,8 +127,6 @@ const Dashboard = () => {
                   </DialogContent>
                 </Dialog>
               </div>
-              
-              <TimeTracker />
             </div>
             
             {viewType === 'list' && <TaskList />}
