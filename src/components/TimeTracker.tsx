@@ -6,17 +6,20 @@ import { formatDuration } from '@/utils/timeUtils';
 import { Button } from '@/components/ui/button';
 import { CategoryBadge } from './CategoryBadge';
 import { cn } from '@/lib/utils';
+import { toast } from 'sonner';
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
 } from '@/components/ui/dialog';
 import TaskForm from './TaskForm';
 
 const TimeTracker: React.FC = () => {
   const { getCurrentlyTrackedTask, tasks, startTimeTracking, stopTimeTracking } = useTask();
   const [taskDialogOpen, setTaskDialogOpen] = useState(false);
+  const [isStoppingTimer, setIsStoppingTimer] = useState(false);
   
   const currentTask = getCurrentlyTrackedTask();
   
@@ -39,9 +42,17 @@ const TimeTracker: React.FC = () => {
     startTimeTracking(taskId);
   };
   
-  const handleStopTracking = () => {
+  const handleStopTracking = async () => {
     if (currentTask) {
-      stopTimeTracking(currentTask.id);
+      try {
+        setIsStoppingTimer(true);
+        await stopTimeTracking(currentTask.id);
+      } catch (error) {
+        console.error("Error in TimeTracker when stopping time:", error);
+        toast.error("Failed to stop time tracking. Your time will still be saved locally.");
+      } finally {
+        setIsStoppingTimer(false);
+      }
     }
   };
   
@@ -49,8 +60,13 @@ const TimeTracker: React.FC = () => {
     // This would reset the current session's timer
     // For demo purposes, we'll restart tracking
     if (currentTask) {
-      stopTimeTracking(currentTask.id);
-      startTimeTracking(currentTask.id);
+      try {
+        stopTimeTracking(currentTask.id);
+        startTimeTracking(currentTask.id);
+      } catch (error) {
+        console.error("Error resetting timer:", error);
+        toast.error("Failed to reset timer. Your time will still be saved locally.");
+      }
     }
   };
   
@@ -103,6 +119,7 @@ const TimeTracker: React.FC = () => {
                 size="icon"
                 onClick={handleResetTimer}
                 className="rounded-full h-12 w-12"
+                disabled={isStoppingTimer}
               >
                 <RotateCcw className="h-5 w-5" />
               </Button>
@@ -111,9 +128,16 @@ const TimeTracker: React.FC = () => {
                 onClick={handleStopTracking}
                 size="lg"
                 className="rounded-full px-6 animate-pulse-soft"
+                disabled={isStoppingTimer}
               >
-                <Pause className="h-5 w-5 mr-2" />
-                Stop
+                {isStoppingTimer ? (
+                  "Stopping..."
+                ) : (
+                  <>
+                    <Pause className="h-5 w-5 mr-2" />
+                    Stop
+                  </>
+                )}
               </Button>
             </>
           ) : (
@@ -172,6 +196,7 @@ const TimeTracker: React.FC = () => {
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Create Task</DialogTitle>
+            <DialogDescription>Add a new task to start tracking time</DialogDescription>
           </DialogHeader>
           <TaskForm
             onSubmit={() => setTaskDialogOpen(false)}
