@@ -1,13 +1,10 @@
 
 import React from 'react';
-import { useAuth } from '@/context/AuthContext';
 import { TaskProvider } from '@/context/TaskContext';
 import Navbar from '@/components/Navbar';
 import TimeTracker from '@/components/TimeTracker';
 
 const TimerPage = () => {
-  const { user } = useAuth();
-  
   return (
     <TaskProvider>
       <div className="flex flex-col md:flex-row min-h-screen bg-background">
